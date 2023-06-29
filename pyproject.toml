@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "libpython"
-version = "0.1.0"
+version = "0.1.1"
 description = "Contains the preprocessing steps for the model-training repository."
 authors = ["remla23-team08"]
 readme = "README.md"
