@@ -6,7 +6,7 @@ authors = ["remla23-team08"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
+python = ">=3.7,<3.11"
 nltk = "^3.8.1"
 
 [tool.poetry.dev-dependencies]
