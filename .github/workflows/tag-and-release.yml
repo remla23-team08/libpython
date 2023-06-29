@@ -1,0 +1,134 @@
+name: Validation & Release Workflow
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  code-quality-validation:
+    name: Code Quality Validation
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Generate GitHub App Token
+        id: generate_github_app_token
+        uses: tibdex/github-app-token@v1.8.0
+        with:
+          app_id: ${{ secrets.GH_APP_ID }}
+          private_key: ${{ secrets.GH_APP_KEY }}
+      
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ steps.generate_github_app_token.outputs.token }}
+          persist-credentials: true
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+      
+      - name: Install & configure Poetry
+        uses: snok/install-poetry@v1.3.3
+        with:
+          version: 1.5.1
+      
+      - name: Install & validate Poetry dependencies
+        run: |
+          poetry install
+          poetry check
+      
+      - name: Check Vanilla pylint
+        run: |
+          set -e # fail on error
+          poetry run pylint -j 0 --fail-under=10.0 src
+
+      - name: Check pylint with DSLinter
+        run: |
+          set -e # fail on error
+          poetry run pylint -j 0 --load-plugins=dslinter --fail-under=10.0 src
+      
+      - name: Check isort
+        run: |
+          set -e # fail on error
+          poetry run isort --check-only .
+      
+      - name: Check black
+        run: |
+          set -e # fail on error
+          poetry run black --check .
+
+  tag-release:
+    name: Tag & Release
+    runs-on: ubuntu-22.04
+    needs: code-quality-validation
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Generate GitHub App Token
+        id: generate_github_app_token
+        uses: tibdex/github-app-token@v1.8.0
+        with:
+          app_id: ${{ secrets.GH_APP_ID }}
+          private_key: ${{ secrets.GH_APP_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ steps.generate_github_app_token.outputs.token }}
+          persist-credentials: true
+    
+      - name: Configure Git Credentials
+        run: |
+          git config user.name "GitHub Actions [bot]"
+          git config user.email "actions@github.com"
+      
+      - name: Install .NET Core
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '3.1.x'
+        env: 
+          DOTNET_INSTALL_DIR: ${{ runner.workspace }}/dotnet
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0
+        with:
+          versionSpec: '5.x'
+        
+      - name: Get GitVersion
+        id: get_gitversion
+        uses: gittools/actions/gitversion/execute@v0
+        with:
+          useConfigFile: true
+          configFilePath: GitVersion.yml
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+    
+      - name: Install & configure Poetry
+        uses: snok/install-poetry@v1.3.3
+        with:
+          version: 1.5.1
+      
+      - name: Update poetry package version
+        run: poetry version ${{ steps.get_gitversion.outputs.majorMinorPatch }}
+      
+      - name: Commit, tag and release new version
+        env: 
+          GITHUB_TOKEN: ${{ steps.generate_github_app_token.outputs.token }}
+        run: |
+          git status # This is just to check if the git config worked
+          git pull origin main # In case any changes were made since checkout
+          git add pyproject.toml # Add dependency version changes
+          git commit -m "Update project version to ${{ steps.get_gitversion.outputs.majorMinorPatch }} [skip ci]"
+          git tag ${{ steps.get_gitversion.outputs.majorMinorPatch }} -m "Release ${{ steps.get_gitversion.outputs.majorMinorPatch }}"
+          git push --set-upstream origin $(git branch --show-current) --follow-tags
+
+          # Create a GitHub release from latest tag
+          gh release create ${{ steps.get_gitversion.outputs.majorMinorPatch }} \
+            --title "${{ steps.get_gitversion.outputs.majorMinorPatch }}" \
+            --generate-notes
