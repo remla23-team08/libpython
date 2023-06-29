@@ -1,0 +1,2 @@
+# Do not include any .IDEA or OS-related files in the .gitignore file
+__pychache__/
