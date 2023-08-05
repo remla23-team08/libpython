@@ -31,7 +31,7 @@ jobs:
           python-version: 3.8
       
       - name: Install & configure Poetry
-        uses: snok/install-poetry@v1.3.3
+        uses: snok/install-poetry@v1.3.4
         with:
           version: 1.5.1
       
@@ -110,7 +110,7 @@ jobs:
           python-version: 3.8
     
       - name: Install & configure Poetry
-        uses: snok/install-poetry@v1.3.3
+        uses: snok/install-poetry@v1.3.4
         with:
           version: 1.5.1
       
